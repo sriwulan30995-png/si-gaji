@@ -202,7 +202,7 @@ class PayrollForm
                                         ->required()
                                         ->numeric()
                                         ->prefix('Rp')
-                                        ->live()
+                                        ->live(onBlur: true)
                                         ->afterStateUpdated(function (Get $get, Set $set) {
                                             self::recalculateTotalsFromRepeater($get, $set);
                                         }),
