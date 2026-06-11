@@ -31,6 +31,9 @@ use Filament\Tables\Table;
 use Illuminate\Database\Eloquent\Builder;
 use Illuminate\Support\Carbon;
 use Illuminate\Support\Facades\Auth;
+use Illuminate\Support\Facades\Cache;
+use Illuminate\Support\Facades\Http;
+use Illuminate\Support\Facades\Log;
 use UnitEnum;
 
 class OvertimeResource extends Resource
@@ -215,7 +218,28 @@ class OvertimeResource extends Resource
             ]);
     }
 
-    // 🌟 FUNGSI HELPER: Menghitung selisih jam secara realtime
+    /**
+     * Helper: Cek Libur via API
+     */
+    protected static function isHoliday(Carbon $date): bool
+    {
+        return Cache::remember('holiday_' . $date->format('Y-m-d'), 3600, function () use ($date): bool {
+            try {
+                $response = Http::timeout(3)->get('https://libur.deno.dev/api');
+                if ($response->successful()) {
+                    $holidays = $response->json();
+                    return collect($holidays)->contains(fn($h) => ($h['date'] ?? '') === $date->format('Y-m-d'));
+                }
+            } catch (\Exception $e) {
+                Log::error('Gagal akses API libur: ' . $e->getMessage());
+            }
+            return $date->isWeekend();
+        });
+    }
+
+    /**
+     * Helper: Kalkulasi Durasi & Gaji
+     */
     public static function calculateDuration(Get $get, Set $set): void
     {
         $clockIn = $get('clock_in');
@@ -225,107 +249,47 @@ class OvertimeResource extends Resource
 
         if ($clockIn && $clockOut && $dateInput && $employeeId) {
             $date = Carbon::parse($dateInput);
-
-            // --- KUNCI BATAS MULAI JAM 08:00 (HARI BIASA & HARI LIBUR) ---
-            // Jika karyawan check-in sebelum jam 08:00, perhitungan tetap dimulai dari jam 08:00
             $startTime = Carbon::parse($clockIn)->max(Carbon::parse($clockIn)->setTime(8, 0, 0));
             $endTime = Carbon::parse($clockOut);
 
-            // Jika ternyata jam pulang lebih awal dari jam 08:00 (error input)
-            if ($startTime->gt($endTime)) {
+            if ($startTime->gte($endTime)) {
                 $set('duration_hours', 0);
                 $set('overtime_pay', 0);
                 return;
             }
 
-            // --- 1. HITUNG DURASI KOTOR (SEBELUM POTONGAN) ---
+            // Hitung total jam
             $totalMinutes = $startTime->diffInMinutes($endTime);
+            $totalHours = $totalMinutes / 60;
 
-            // Aturan Potongan Istirahat 2 Jam (120 Menit)
-            // Potongan hanya berlaku jika total menit lembur bersih di atas 2 jam
-            $potonganMenit = 0;
-            if ($totalMinutes > 120) {
-                $potonganMenit = 120; // 2 jam = 120 menit
-            }
+            // Aturan Istirahat: 1 jam tiap 4 jam kerja lembur
+            $breakHours = floor($totalHours / 4);
+            $paidHours = max(0, $totalHours - $breakHours);
 
-            // Durasi bersih setelah dikurangi istirahat
-            $cleanMinutes = max(0, $totalMinutes - $potonganMenit);
-            $duration = round($cleanMinutes / 60, 2);
+            $set('duration_hours', round($paidHours, 2));
 
-            // Simpan durasi bersih ke input form
-            $set('duration_hours', $duration);
-
-            // --- 2. AMBIL TARIF PER JAM KARYAWAN ---
+            // Kalkulasi Upah
             $employee = Employee::with('position')->find($employeeId);
             $hourlyRate = $employee?->position?->hourly_overtime_rate ?? 0;
-
+            $isHoliday = self::isHoliday($date);
             $totalPay = 0;
-            $isWeekend = $date->isWeekend();
 
-            if (!$isWeekend) {
-                // --- HARI BIASA (Senin - Jumat) ---
-                // Batasi lembur max jam 22:00
-                $maxTime = Carbon::parse($clockIn)->setTime(22, 0, 0);
-
-                if ($endTime->gt($maxTime)) {
-                    $endTime = $maxTime;
-                }
-
-                if ($startTime->lt($endTime)) {
-                    $validMinutes = $startTime->diffInMinutes($endTime);
-
-                    // Kurangi potongan istirahat secara proporsional
-                    $validMinutes = max(0, $validMinutes - $potonganMenit);
-
-                    $validHours = $validMinutes / 60;
-                    $totalPay = $validHours * ($hourlyRate * 1.5);
-                }
-
+            if (!$isHoliday) {
+                // Hari Biasa: Tarif 1.5x
+                $totalPay = $paidHours * ($hourlyRate * 1.5);
             } else {
-                // --- HARI LIBUR / TANGGAL MERAH ---
+                // Hari Libur: Pembagian zona (Sederhana)
+                // Zona 1: Rate 2x, Zona 2 (setelah 18.30): Rate 2.5x
                 $limitTime = Carbon::parse($clockIn)->setTime(18, 30, 0);
 
-                // Zona 1: 08.00 - 18.30 (Rate x 2)
-                // $startTime sudah dikunci minimal jam 08.00 di atas, jadi aman
-                $zona1Start = $startTime;
-                $zona1End = $endTime->copy()->min($limitTime);
-                $minutesZona1 = 0;
+                // Distribusi jam lembur ke zona
+                $hoursZona1 = min($paidHours, max(0, $startTime->diffInMinutes($endTime->min($limitTime))) / 60);
+                $hoursZona2 = max(0, $paidHours - $hoursZona1);
 
-                if ($zona1Start->lt($zona1End)) {
-                    $minutesZona1 = $zona1Start->diffInMinutes($zona1End);
-                }
-
-                // Zona 2: 18.30 - 00.00 (Rate x 2.5)
-                $zona2Start = $startTime->copy()->max($limitTime);
-                $zona2End = $endTime->copy()->min($endTime->copy()->endOfDay());
-                $minutesZona2 = 0;
-
-                if ($zona2Start->lt($zona2End)) {
-                    $minutesZona2 = $zona2Start->diffInMinutes($zona2End);
-                }
-
-                // --- ALOKASI POTONGAN 2 JAM PADA HARI LIBUR ---
-                if ($potonganMenit > 0) {
-                    if ($minutesZona1 >= $potonganMenit) {
-                        $minutesZona1 -= $potonganMenit;
-                    } else {
-                        $sisaPotongan = $potonganMenit - $minutesZona1;
-                        $minutesZona1 = 0;
-                        $minutesZona2 = max(0, $minutesZona2 - $sisaPotongan);
-                    }
-                }
-
-                // Hitung total pendapatan akhir hari libur
-                $totalPay += ($minutesZona1 / 60) * ($hourlyRate * 2);
-                $totalPay += ($minutesZona2 / 60) * ($hourlyRate * 2.5);
+                $totalPay = ($hoursZona1 * ($hourlyRate * 2)) + ($hoursZona2 * ($hourlyRate * 2.5));
             }
 
-            // Set nilai uang lembur ke form
             $set('overtime_pay', round($totalPay, 0));
-
-        } else {
-            $set('duration_hours', 0);
-            $set('overtime_pay', 0);
         }
     }
 

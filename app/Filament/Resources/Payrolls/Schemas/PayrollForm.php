@@ -16,6 +16,7 @@ use Filament\Schemas\Components\Utilities\Get;
 use Filament\Schemas\Components\Utilities\Set;
 use Filament\Schemas\Schema;
 use Filament\Support\Icons\Heroicon;
+use Illuminate\Support\Carbon;
 
 class PayrollForm
 {
@@ -264,6 +265,9 @@ class PayrollForm
         $month = $get('period_month') ?? now()->month;
         $year = $get('period_year') ?? now()->year;
 
+        $startDate = Carbon::create($year, $month, 16)->startOfDay();
+        $endDate = $startDate->copy()->addMonth()->setDay(15)->endOfDay();
+
         $employee = Employee::with(['position.allowances.allowanceType', 'position.deductions.deductionType'])
             ->find($employeeId);
 
@@ -280,26 +284,18 @@ class PayrollForm
         $totalDeduction = 0;
         $totalOvertime = 0;
 
-        // --- ATURAN ABSENSI STANDAR ---
         $standardWorkingDays = 22;
 
         // 🌟 Mengambil data kehadiran dinamis berdasarkan karyawan, bulan, dan tahun terpilih
         $actualAttendanceDays = Attendance::where('employee_id', $employeeId)
             ->where('status', 'present')
-            ->whereMonth('date', $month)
-            ->whereYear('date', $year)
+            ->whereBetween('date', [$startDate, $endDate])
             ->count();
 
-        // 1. Tarik Tunjangan Otomatis Berdasarkan Jabatan Karyawan
+        // 1. Tunjangan
         foreach ($position->allowances as $posAllowance) {
             $rawAmount = (float) $posAllowance->amount;
-
-            // Jika Karyawan mangkir total pada bulan terpilih, tunjangan operasional dinolkan
-            if ($actualAttendanceDays === 0) {
-                $allowanceAmount = 0;
-            } else {
-                $allowanceAmount = $rawAmount;
-            }
+            $allowanceAmount = ($actualAttendanceDays === 0) ? 0 : $rawAmount;
 
             if ($allowanceAmount > 0) {
                 $totalAllowance += $allowanceAmount;
@@ -311,11 +307,10 @@ class PayrollForm
             }
         }
 
-        // 2. Tarik Potongan Otomatis Berdasarkan Jabatan Karyawan
+        // 2. Potongan Jabatan
         foreach ($position->deductions as $posDeduction) {
             $deductionAmount = (float) $posDeduction->amount;
             $totalDeduction += $deductionAmount;
-
             $detailsItems[] = [
                 'type' => 'deduction',
                 'component_name' => $posDeduction->deductionType->name ?? 'Potongan Jabatan',
@@ -323,46 +318,40 @@ class PayrollForm
             ];
         }
 
-        // 3. Hitung Jam Lembur Dinamis berdasarkan Karyawan + Bulan + Tahun terpilih
+        // 3. Lembur (Overtime)
         $approvedOvertimeHours = Overtime::where('employee_id', $employeeId)
             ->where('status', 'approved')
-            ->whereMonth('date', $month)
-            ->whereYear('date', $year)
+            ->whereBetween('date', [$startDate, $endDate]) // 🌟 Query update
             ->sum('duration_hours');
 
-        // 🌟 Mengambil sum dari nominal uang lembur bersih (overtime_pay) yang sudah dihitung berjenjang
         $totalOvertime = (float) Overtime::where('employee_id', $employeeId)
             ->where('status', 'approved')
-            ->whereMonth('date', $month)
-            ->whereYear('date', $year)
+            ->whereBetween('date', [$startDate, $endDate]) // 🌟 Query update
             ->sum('overtime_pay');
 
         if ($totalOvertime > 0) {
             $detailsItems[] = [
                 'type' => 'overtime',
                 'component_name' => 'Uang Lembur (' . round($approvedOvertimeHours, 2) . ' Jam)',
-                'amount' => $totalOvertime, // Menggunakan nominal asli dari form lembur
+                'amount' => $totalOvertime,
             ];
         }
 
-        // 4. Hitung Potongan Mangkir Kerja
+        // 4. Potongan Mangkir
         if ($actualAttendanceDays < $standardWorkingDays) {
             $missingDays = $standardWorkingDays - $actualAttendanceDays;
             $hoursPerDay = 10;
             $totalMissingHours = $missingDays * $hoursPerDay;
 
-            if ($actualAttendanceDays === 0) {
-                $attendanceDeductionAmount = $baseSalary;
-            } else {
-                $hourlyDeductionRate = $baseSalary / ($standardWorkingDays * $hoursPerDay);
-                $attendanceDeductionAmount = round($totalMissingHours * $hourlyDeductionRate);
-            }
+            $attendanceDeductionAmount = ($actualAttendanceDays === 0)
+                ? $baseSalary
+                : round($totalMissingHours * ($baseSalary / ($standardWorkingDays * $hoursPerDay)));
 
             if ($attendanceDeductionAmount > 0) {
                 $totalDeduction += $attendanceDeductionAmount;
                 $detailsItems[] = [
                     'type' => 'deduction',
-                    'component_name' => "Potongan Mangkir Kerja ({$missingDays} Hari / {$totalMissingHours} Jam)",
+                    'component_name' => "Potongan Mangkir ({$missingDays} Hari / {$totalMissingHours} Jam)",
                     'amount' => $attendanceDeductionAmount,
                 ];
             }
@@ -390,9 +379,7 @@ class PayrollForm
         $set('total_allowance', $totalAllowance);
         $set('total_overtime', $totalOvertime);
         $set('total_deduction', $totalDeduction);
-
-        $netSalary = ($baseSalary + $totalAllowance + $totalOvertime) - $totalDeduction;
-        $set('net_salary', max(0, $netSalary));
+        $set('net_salary', max(0, ($baseSalary + $totalAllowance + $totalOvertime) - $totalDeduction));
     }
 
     /**
