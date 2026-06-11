@@ -1,0 +1,6 @@
+@import "../../../../vendor/filafly/brisk/resources/css/theme.css";
+
+@source '../../../../app/Filament/**/*';
+@source '../../../../resources/views/chezzy/**/*';
+@source '../../../../resources/views/filament/**/*';
+@source '../../../../vendor/devonab/filament-easy-footer/resources/views/**/*';
