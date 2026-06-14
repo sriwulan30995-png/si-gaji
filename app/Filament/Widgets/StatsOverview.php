@@ -8,12 +8,16 @@ use App\Models\Payroll;
 use Filament\Widgets\StatsOverviewWidget;
 use Filament\Widgets\StatsOverviewWidget\Stat;
 use Illuminate\Support\Carbon;
+use Illuminate\Support\Facades\Auth;
 
 class StatsOverview extends StatsOverviewWidget
 {
     // Opsional: Atur urutan kemunculan widget di dashboard
     protected static ?int $sort = 1;
-
+    public static function canView(): bool
+    {
+        return Auth::user()->hasRole('Administrator');
+    }
     protected function getStats(): array
     {
         // Dapatkan bulan dan tahun saat ini

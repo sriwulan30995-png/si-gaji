@@ -5,6 +5,7 @@ namespace App\Filament\Widgets;
 use App\Models\Overtime;
 use Filament\Widgets\ChartWidget;
 use Illuminate\Support\Carbon;
+use Illuminate\Support\Facades\Auth;
 
 class OvertimeTrendChart extends ChartWidget
 {
@@ -21,6 +22,11 @@ class OvertimeTrendChart extends ChartWidget
             'this_year' => 'Tahun Ini',
             'last_year' => 'Tahun Lalu',
         ];
+    }
+
+    public static function canView(): bool
+    {
+        return Auth::user()->hasRole(['Administrator', 'Pimpinan']);
     }
 
     protected function getData(): array

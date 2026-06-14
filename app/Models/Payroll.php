@@ -4,6 +4,7 @@ namespace App\Models;
 
 use Illuminate\Database\Eloquent\Factories\HasFactory;
 use Illuminate\Database\Eloquent\Model;
+use Illuminate\Support\Carbon;
 
 class Payroll extends Model
 {
@@ -35,6 +36,21 @@ class Payroll extends Model
     public function approver()
     {
         return $this->belongsTo(User::class, 'approved_by_user_id');
+    }
+
+    public function overtimes()
+    {
+        $startDate = Carbon::create($this->period_year, $this->period_month, 16)->startOfDay();
+
+        // Periode berakhir di tanggal 18 bulan berikutnya
+        // Kita gunakan addMonth() untuk melompat ke bulan depan
+        $endDate = Carbon::create($this->period_year, $this->period_month, 15)
+            ->addMonth()
+            ->endOfDay();
+
+        return $this->hasMany(Overtime::class, 'employee_id', 'employee_id')
+            ->where('status', 'approved')
+            ->whereBetween('date', [$startDate, $endDate]);
     }
 }
 

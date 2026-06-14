@@ -5,12 +5,16 @@ namespace App\Filament\Widgets;
 use App\Models\Payroll;
 use Filament\Widgets\ChartWidget;
 use Illuminate\Support\Carbon;
+use Illuminate\Support\Facades\Auth;
 
 class PayrollExpenseChart extends ChartWidget
 {
     protected ?string $heading = 'Grafik Pengeluaran Gaji (Tahun Ini)';
     protected static ?int $sort = 2; // Tampil setelah StatsOverview
-
+    public static function canView(): bool
+    {
+        return Auth::user()->hasRole(['Administrator', 'Pimpinan']);
+    }
     protected function getData(): array
     {
         $currentYear = Carbon::now()->year;

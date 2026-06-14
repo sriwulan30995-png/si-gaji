@@ -17,6 +17,8 @@ use Filament\Schemas\Components\Utilities\Set;
 use Filament\Schemas\Schema;
 use Filament\Support\Icons\Heroicon;
 use Illuminate\Support\Carbon;
+use Illuminate\Support\Facades\Cache;
+use Illuminate\Support\Facades\Http;
 
 class PayrollForm
 {
@@ -265,6 +267,7 @@ class PayrollForm
         $month = $get('period_month') ?? now()->month;
         $year = $get('period_year') ?? now()->year;
 
+        // Penentuan Cut-off (contoh: 16 bulan ini sampai 15 bulan depan)
         $startDate = Carbon::create($year, $month, 16)->startOfDay();
         $endDate = $startDate->copy()->addMonth()->setDay(15)->endOfDay();
 
@@ -284,7 +287,44 @@ class PayrollForm
         $totalDeduction = 0;
         $totalOvertime = 0;
 
-        $standardWorkingDays = 22;
+        // -------------------------------------------------------------------------
+        // 🌟 PERBAIKAN: Hitung Jumlah Hari Kerja Standar Secara Dinamis
+        // -------------------------------------------------------------------------
+        $standardWorkingDays = 0;
+        $period = \Carbon\CarbonPeriod::create($startDate, $endDate);
+
+        // Ambil data libur nasional dan simpan di cache selama 1 hari (86400 detik)
+        // agar tidak membuat web lambat karena request API berulang-ulang.
+        $holidays = Cache::remember('national_holidays_payroll', 86400, function () {
+            try {
+                $response = Http::timeout(3)->get('https://libur.deno.dev/api');
+                if ($response->successful()) {
+                    // Ambil hanya list tanggalnya saja (contoh: ['2026-02-28', '2026-03-03'])
+                    return collect($response->json())->pluck('date')->toArray();
+                }
+            } catch (\Exception $e) {
+                // Abaikan jika API error
+            }
+            return [];
+        });
+
+        foreach ($period as $date) {
+            $dateString = $date->format('Y-m-d');
+            $isHoliday = in_array($dateString, $holidays);
+
+            // Tambahkan sebagai hari kerja JIKA:
+            // 1. Hari Senin - Jumat (isWeekday)
+            // 2. BUKAN Tanggal Merah / Libur Nasional (!isHoliday)
+            if ($date->isWeekday() && !$isHoliday) {
+                $standardWorkingDays++;
+            }
+        }
+
+        // Mencegah error pembagian dengan 0
+        if ($standardWorkingDays === 0) {
+            $standardWorkingDays = 1;
+        }
+        // -------------------------------------------------------------------------
 
         // 🌟 Mengambil data kehadiran dinamis berdasarkan karyawan, bulan, dan tahun terpilih
         $actualAttendanceDays = Attendance::where('employee_id', $employeeId)
@@ -321,12 +361,12 @@ class PayrollForm
         // 3. Lembur (Overtime)
         $approvedOvertimeHours = Overtime::where('employee_id', $employeeId)
             ->where('status', 'approved')
-            ->whereBetween('date', [$startDate, $endDate]) // 🌟 Query update
+            ->whereBetween('date', [$startDate, $endDate])
             ->sum('duration_hours');
 
         $totalOvertime = (float) Overtime::where('employee_id', $employeeId)
             ->where('status', 'approved')
-            ->whereBetween('date', [$startDate, $endDate]) // 🌟 Query update
+            ->whereBetween('date', [$startDate, $endDate])
             ->sum('overtime_pay');
 
         if ($totalOvertime > 0) {
@@ -337,10 +377,10 @@ class PayrollForm
             ];
         }
 
-        // 4. Potongan Mangkir
+        // 4. Potongan Mangkir (Disesuaikan dengan $standardWorkingDays Dinamis)
         if ($actualAttendanceDays < $standardWorkingDays) {
             $missingDays = $standardWorkingDays - $actualAttendanceDays;
-            $hoursPerDay = 10;
+            $hoursPerDay = 10; // Sesuaikan dengan jam kerja harian perusahaan
             $totalMissingHours = $missingDays * $hoursPerDay;
 
             $attendanceDeductionAmount = ($actualAttendanceDays === 0)

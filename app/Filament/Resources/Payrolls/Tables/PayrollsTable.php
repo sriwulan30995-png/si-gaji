@@ -204,25 +204,9 @@ class PayrollsTable
                     ->label('Cetak Slip')
                     ->icon('heroicon-o-document-arrow-down')
                     ->color('success')
-                    ->button()
                     ->visible(fn($record) => $record->status === 'approved')
-                    ->action(function ($record) {
-                        // Tarik relasi yang dibutuhkan agar tidak terjadi N+1 query problem
-                        $record->load(['employee.position', 'details']);
-
-                        // Load view blade dan passing data payroll
-                        $pdf = Pdf::loadView('pdf.payslip', [
-                            'payroll' => $record,
-                        ]);
-
-                        // Format nama file saat diunduh
-                        $fileName = 'Slip_Gaji_' . $record->employee->nik . '_' . $record->period_month . '_' . $record->period_year . '.pdf';
-
-                        // Return file PDF untuk di-download
-                        return response()->streamDownload(function () use ($pdf) {
-                            echo $pdf->stream();
-                        }, $fileName);
-                    }),
+                    ->url(fn($record) => route('payroll.download', $record))
+                    ->openUrlInNewTab(),
                 // UX: Kelompokkan action agar layar tabel lega
                 ActionGroup::make([
                     ViewAction::make(),

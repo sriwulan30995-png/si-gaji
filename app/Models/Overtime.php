@@ -33,4 +33,16 @@ class Overtime extends Model
     {
         return $this->belongsTo(User::class, 'approved_by_user_id');
     }
+
+    public function getMultiplier15Attribute()
+    {
+        // Sesuaikan logika perhitungannya dengan aturan perusahaan Anda
+        return $this->attributes['multiplier_1_5'] ?? 0;
+    }
+
+    public function getMultiplier2Attribute()
+    {
+        // Sesuaikan logika perhitungannya dengan aturan perusahaan Anda
+        return $this->attributes['multiplier_2'] ?? 0;
+    }
 }
