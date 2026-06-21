@@ -96,8 +96,8 @@ class PayrollsTable
                     ->label('Status')
                     ->badge()
                     ->color(fn(string $state): string => match ($state) {
-                        'paid' => 'success',      // Hijau: Sudah ditransfer
-                        'approved' => 'info',     // Biru: Siap ditransfer
+                        'paid' => 'info',         // Biru: Telah Dibayar
+                        'approved' => 'success',  // Hijau: Disetujui Pimpinan
                         'draft' => 'warning',     // Kuning/Oranye: Masih dihitung
                         default => 'gray',
                     })
@@ -160,10 +160,11 @@ class PayrollsTable
                     ]),
             ])
             ->recordActions([
-                Action::make('mark_as_approve')
-                    ->label('Approve')
+                // 1. Tombol Mark as Paid (Administrator, saat status 'draft')
+                Action::make('mark_as_paid')
+                    ->label('Mark as Paid')
                     ->icon('heroicon-o-banknotes')
-                    ->color('warning')
+                    ->color('info')
                     ->button()
                     ->requiresConfirmation()
                     ->modalHeading('Tandai Gaji Sudah Dibayar?')
@@ -176,40 +177,39 @@ class PayrollsTable
                     })
                     ->action(function ($record) {
                         $record->update([
-                            'status' => 'approved',
-                            'approved_by_user_id' => Auth::id()
+                            'status' => 'paid',
                         ]);
                     }),
 
-                // 2. Tombol Approve (Khusus Pimpinan, saat status 'paid')
-                Action::make('mark_as_paid')
-                    ->label('setujui')
+                // 2. Tombol Cetak Slip (Muncul setelah mark as paid atau approved)
+                Action::make('cetak_slip')
+                    ->label('Cetak Slip')
+                    ->icon('heroicon-o-document-arrow-down')
+                    ->color('warning')
+                    ->visible(fn($record) => in_array($record->status, ['paid', 'approved']))
+                    ->url(fn($record) => route('payroll.download', $record))
+                    ->openUrlInNewTab(),
+
+                // 3. Tombol Approve (Khusus Pimpinan, saat status 'paid')
+                Action::make('mark_as_approve')
+                    ->label('Approve Pimpinan')
                     ->icon('heroicon-o-check-circle')
                     ->color('success')
                     ->button()
                     ->requiresConfirmation()
-                    ->modalHeading('Approve Pembayaran Penggajian?')
-                    ->modalDescription('Apakah Anda yakin menyetujui penggajian ini? .')
+                    ->modalHeading('Approve Penggajian?')
+                    ->modalDescription('Apakah Anda yakin menyetujui penggajian ini?')
                     ->visible(function ($record) {
                         // Sama seperti di atas, sesuaikan pengecekan role-nya
-                        return $record->status === 'approved' && Auth::user()->hasRole('Pimpinan');
+                        return $record->status === 'paid' && Auth::user()->hasRole('Pimpinan');
                     })
                     ->action(function ($record) {
                         $record->update([
-                            'status' => 'paid',
+                            'status' => 'approved',
                             // Opsional: Catat ID user pimpinan yang melakukan approve ke database
                             'approved_by_user_id' => auth()->id(),
                         ]);
                     }),
-
-                // 3. Tombol Cetak Slip (Muncul hanya jika status sudah 'approved')
-                Action::make('cetak_slip')
-                    ->label('Cetak Slip')
-                    ->icon('heroicon-o-document-arrow-down')
-                    ->color('success')
-                    ->visible(fn($record) => $record->status === 'approved')
-                    ->url(fn($record) => route('payroll.download', $record))
-                    ->openUrlInNewTab(),
                 // UX: Kelompokkan action agar layar tabel lega
                 ActionGroup::make([
                     ViewAction::make(),
