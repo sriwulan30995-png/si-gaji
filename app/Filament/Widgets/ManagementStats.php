@@ -23,9 +23,9 @@ class ManagementStats extends StatsOverviewWidget
                 ->description('Karyawan aktif')
                 ->descriptionIcon('heroicon-m-user-group')
                 ->color('info'),
-            Stat::make('Pengajuan Lembur', Overtime::where('status', 'pending')->count())
+            Stat::make('Approval Penggajian', Payroll::where('status', 'paid')->count())
                 ->description('Menunggu Approval')
-                ->descriptionIcon('heroicon-m-clock')
+                ->descriptionIcon('heroicon-m-check-badge')
                 ->color('warning'),
             Stat::make('Total Pengeluaran Gaji', 'Rp ' . number_format(Payroll::sum('net_salary'), 0, ',', '.'))
                 ->description('Total kumulatif')
