@@ -303,6 +303,7 @@ class OvertimeResource extends Resource
                     });
                 }
             })
+            ->defaultSort('created_at', 'desc')
             ->recordTitleAttribute('name')
             ->columns([
                 TextColumn::make('employee.full_name')
@@ -407,7 +408,8 @@ class OvertimeResource extends Resource
                                 'rejected' => 'danger',
                                 default => 'gray',
                             }),
-                    ])->columns(3),
+                    ])->columns(3)
+                    ->columnSpanFull(),
             ]);
     }
 

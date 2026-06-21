@@ -18,6 +18,7 @@
         "laravel/framework": "^12.0",
         "laravel/tinker": "^2.10.1",
         "resma/filament-awin-theme": "^1.1",
+        "simplesoftwareio/simple-qrcode": "*",
         "spatie/laravel-permission": "^6.24",
         "watheqalshowaiter/filament-sticky-table-header": "^1.3"
     },

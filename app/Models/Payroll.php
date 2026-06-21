@@ -42,7 +42,7 @@ class Payroll extends Model
     {
         $startDate = Carbon::create($this->period_year, $this->period_month, 16)->startOfDay();
 
-        // Periode berakhir di tanggal 18 bulan berikutnya
+        // Periode berakhir di tanggal 15 bulan berikutnya
         // Kita gunakan addMonth() untuk melompat ke bulan depan
         $endDate = Carbon::create($this->period_year, $this->period_month, 15)
             ->addMonth()

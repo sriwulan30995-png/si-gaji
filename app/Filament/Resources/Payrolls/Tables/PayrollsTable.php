@@ -175,7 +175,10 @@ class PayrollsTable
                         return $record->status === 'draft' && Auth::user()->hasRole('Administrator');
                     })
                     ->action(function ($record) {
-                        $record->update(['status' => 'approved']);
+                        $record->update([
+                            'status' => 'approved',
+                            'approved_by_user_id' => Auth::id()
+                        ]);
                     }),
 
                 // 2. Tombol Approve (Khusus Pimpinan, saat status 'paid')

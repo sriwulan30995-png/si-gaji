@@ -158,14 +158,25 @@
     </table>
 
     <!-- Kolom Tanda Tangan -->
+    <!-- Kolom Tanda Tangan -->
     <table class="signature-table">
         <tr>
             <td width="50%" class="text-center">
-                Diterima Oleh,<br><br><br><br><br>
+                Diterima Oleh,<br><br>
+                @if(isset($employeeQrBase64))
+                    <img src="data:image/svg+xml;base64,{{ $employeeQrBase64 }}" alt="Barcode" style="margin-bottom: 10px;"><br>
+                @else
+                    <br><br><br><br>
+                @endif
                 <span class="text-bold">( {{ $payroll->employee->full_name }} )</span>
             </td>
             <td width="50%" class="text-center">
-                Disetujui Oleh,<br><br><br><br><br>
+                Disetujui Oleh,<br><br>
+                @if(isset($approverQrBase64))
+                    <img src="data:image/svg+xml;base64,{{ $approverQrBase64 }}" alt="Barcode" style="margin-bottom: 10px;"><br>
+                @else
+                    <br><br><br><br>
+                @endif
                 <span class="text-bold">( {{ $payroll->approver->name ?? 'HRD & Finance' }} )</span>
             </td>
         </tr>
