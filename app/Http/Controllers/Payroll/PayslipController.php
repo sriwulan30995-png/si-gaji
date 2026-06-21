@@ -12,7 +12,7 @@ class PayslipController extends Controller
     public function download(Payroll $payroll)
     {
         // Pastikan hanya payroll yang sudah disetujui yang bisa dicetak
-        if ($payroll->status !== 'approved') {
+        if ($payroll->status !== 'paid') {
             abort(403, 'Slip gaji belum disetujui.');
         }
 
@@ -22,7 +22,7 @@ class PayslipController extends Controller
         // Generate QR Code SVG Base64 di Controller
         $employeeQrText = "Dokumen ini secara resmi ditandatangani secara digital oleh " . $payroll->employee->full_name;
         $employeeQrBase64 = $this->generateQrCodeBase64($employeeQrText);
-        
+
         $approverName = $payroll->approver->name ?? 'HRD & Finance';
         $approverQrText = "Dokumen ini secara resmi ditandatangani secara digital oleh " . $approverName;
         $approverQrBase64 = $this->generateQrCodeBase64($approverQrText);
