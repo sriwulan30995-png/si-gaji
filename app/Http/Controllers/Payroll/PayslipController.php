@@ -11,10 +11,6 @@ class PayslipController extends Controller
 {
     public function download(Payroll $payroll)
     {
-        // Pastikan hanya payroll yang sudah disetujui yang bisa dicetak
-        if ($payroll->status !== 'paid') {
-            abort(403, 'Slip gaji belum disetujui.');
-        }
 
         // Load relasi yang diperlukan
         $payroll->load(['employee.position', 'details', 'overtimes']);
