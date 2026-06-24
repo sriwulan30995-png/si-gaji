@@ -121,7 +121,7 @@
                 @endif
             </td>
             <td class="header-content">
-                <div class="company-name">PT. TRGATRA ANDIKARA DIGITAMA</div>
+                <div class="company-name">PT. TIGATRA ADIKARA DIGITAMA</div>
                 <div class="periode">
                     Slip Gaji Karyawan - Periode {{ str_pad($payroll->period_month, 2, '0', STR_PAD_LEFT) }} / {{ $payroll->period_year }}
                 </div>
