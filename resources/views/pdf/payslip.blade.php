@@ -11,22 +11,50 @@
             color: #333;
         }
 
-        .header {
-            text-align: center;
+        .header-table {
+            width: 100%;
             border-bottom: 2px solid #333;
-            padding-bottom: 10px;
+            padding-bottom: 15px;
             margin-bottom: 20px;
         }
 
+        .header-logo {
+            width: 20%;
+            text-align: left;
+            vertical-align: middle;
+        }
+
+        .header-logo img {
+            max-height: 70px;
+            max-width: 100%;
+            object-fit: contain;
+        }
+
+        .header-content {
+            width: 80%;
+            text-align: center;
+            vertical-align: middle;
+        }
+
         .company-name {
-            font-size: 20px;
+            font-size: 22px;
             font-weight: bold;
             text-transform: uppercase;
+            color: #2c3e50;
+            margin-bottom: 5px;
+            letter-spacing: 1px;
         }
 
         .periode {
-            font-size: 14px;
+            font-size: 13px;
+            font-weight: bold;
+            color: #333;
+            background-color: #f4f4f4;
+            display: inline-block;
+            padding: 5px 15px;
+            border-radius: 5px;
             margin-top: 5px;
+            border: 1px solid #ddd;
         }
 
         .info-table {
@@ -77,12 +105,29 @@
 
 <body>
 
-    <div class="header">
-        <div class="company-name">PT. TRGATRA ANDIKARA DIGITAMA</div>
-        <div class="periode">Slip Gaji Karyawan - Periode {{ str_pad($payroll->period_month, 2, '0', STR_PAD_LEFT) }} /
-            {{ $payroll->period_year }}
-        </div>
-    </div>
+    @php
+        $logoPath = public_path('images/auth/background-auth.png');
+        $logoBase64 = '';
+        if (file_exists($logoPath)) {
+            $logoBase64 = 'data:image/png;base64,' . base64_encode(file_get_contents($logoPath));
+        }
+    @endphp
+
+    <table class="header-table">
+        <tr>
+            <td class="header-logo">
+                @if($logoBase64)
+                    <img src="{{ $logoBase64 }}" alt="Logo Perusahaan">
+                @endif
+            </td>
+            <td class="header-content">
+                <div class="company-name">PT. TRGATRA ANDIKARA DIGITAMA</div>
+                <div class="periode">
+                    Slip Gaji Karyawan - Periode {{ str_pad($payroll->period_month, 2, '0', STR_PAD_LEFT) }} / {{ $payroll->period_year }}
+                </div>
+            </td>
+        </tr>
+    </table>
 
     <!-- Informasi Pegawai -->
     <table class="info-table">
