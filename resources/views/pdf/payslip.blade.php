@@ -19,7 +19,7 @@
         }
 
         .header-logo {
-            width: 20%;
+            width: 40%;
             text-align: left;
             vertical-align: middle;
         }
