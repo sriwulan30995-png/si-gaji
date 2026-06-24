@@ -19,8 +19,9 @@
         }
 
         .header-logo {
-            width: 40%;
-            text-align: left;
+            width: 30%;
+            text-align: right;
+            padding-right: 20px;
             vertical-align: middle;
         }
 
@@ -31,8 +32,8 @@
         }
 
         .header-content {
-            width: 80%;
-            text-align: center;
+            width: 70%;
+            text-align: left;
             vertical-align: middle;
         }
 
