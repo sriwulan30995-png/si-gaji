@@ -160,7 +160,28 @@ class PayrollsTable
                     ]),
             ])
             ->recordActions([
-                // 1. Tombol Mark as Paid (Administrator, saat status 'draft')
+                // 1. Tombol Approve (Khusus Pimpinan, saat status 'draft')
+                Action::make('mark_as_approve')
+                    ->label('Approve Pimpinan')
+                    ->icon('heroicon-o-check-circle')
+                    ->color('success')
+                    ->button()
+                    ->requiresConfirmation()
+                    ->modalHeading('Approve Penggajian?')
+                    ->modalDescription('Apakah Anda yakin menyetujui penggajian ini?')
+                    ->visible(function ($record) {
+                        // Sama seperti di atas, sesuaikan pengecekan role-nya
+                        return $record->status === 'draft' && Auth::user()->hasRole('Pimpinan');
+                    })
+                    ->action(function ($record) {
+                        $record->update([
+                            'status' => 'approved',
+                            // Opsional: Catat ID user pimpinan yang melakukan approve ke database
+                            'approved_by_user_id' => auth()->id(),
+                        ]);
+                    }),
+
+                // 2. Tombol Mark as Paid (Administrator, saat status 'approved')
                 Action::make('mark_as_paid')
                     ->label('Mark as Paid')
                     ->icon('heroicon-o-banknotes')
@@ -173,7 +194,7 @@ class PayrollsTable
                         // Sesuaikan metode pengecekan role di bawah ini dengan sistem Anda
                         // Contoh menggunakan Spatie Permission: auth()->user()->hasRole('Administrator')
                         // Contoh menggunakan kolom role murni: auth()->user()->role === 'Administrator'
-                        return $record->status === 'draft' && Auth::user()->hasRole('Administrator');
+                        return $record->status === 'approved' && Auth::user()->hasRole('Administrator');
                     })
                     ->action(function ($record) {
                         $record->update([
@@ -181,7 +202,7 @@ class PayrollsTable
                         ]);
                     }),
 
-                // 2. Tombol Cetak Slip (Muncul setelah mark as paid atau approved)
+                // 3. Tombol Cetak Slip (Muncul setelah mark as paid atau approved)
                 Action::make('cetak_slip')
                     ->label('Cetak Slip')
                     ->icon('heroicon-o-document-arrow-down')
@@ -189,27 +210,6 @@ class PayrollsTable
                     ->visible(fn($record) => in_array($record->status, ['paid', 'approved']))
                     ->url(fn($record) => route('payroll.download', $record))
                     ->openUrlInNewTab(),
-
-                // 3. Tombol Approve (Khusus Pimpinan, saat status 'paid')
-                Action::make('mark_as_approve')
-                    ->label('Approve Pimpinan')
-                    ->icon('heroicon-o-check-circle')
-                    ->color('success')
-                    ->button()
-                    ->requiresConfirmation()
-                    ->modalHeading('Approve Penggajian?')
-                    ->modalDescription('Apakah Anda yakin menyetujui penggajian ini?')
-                    ->visible(function ($record) {
-                        // Sama seperti di atas, sesuaikan pengecekan role-nya
-                        return $record->status === 'paid' && Auth::user()->hasRole('Pimpinan');
-                    })
-                    ->action(function ($record) {
-                        $record->update([
-                            'status' => 'approved',
-                            // Opsional: Catat ID user pimpinan yang melakukan approve ke database
-                            'approved_by_user_id' => auth()->id(),
-                        ]);
-                    }),
                 // UX: Kelompokkan action agar layar tabel lega
                 ActionGroup::make([
                     ViewAction::make(),
